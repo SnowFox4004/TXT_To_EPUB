@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLa
     QGridLayout, QProgressBar
 from main import TxtToEpubConverter
 
+
 class TxtToEpubGUI(QWidget):
     def __init__(self):
         super().__init__()
@@ -62,7 +63,8 @@ class TxtToEpubGUI(QWidget):
             self.fileNameEdit.setText(os.path.splitext(os.path.basename(filePath))[0])
 
     def browseCoverImage(self):
-        coverImagePath, _ = QFileDialog.getOpenFileName(self, '选择封面图像', '', 'Image files (*.jpg *.jpeg *.png *.bmp *.gif *.tiff *.webp)')
+        coverImagePath, _ = QFileDialog.getOpenFileName(self, '选择封面图像', '',
+                                                        'Image files (*.jpg *.jpeg *.png *.bmp *.gif *.tiff *.webp)')
         if coverImagePath:
             self.coverImagePath = coverImagePath
             self.coverLabel.setText(f'选择的封面图像: {os.path.basename(coverImagePath)}')
@@ -80,17 +82,20 @@ class TxtToEpubGUI(QWidget):
             return
 
         output_path = os.path.join('..', 'out', f'{bookTitle}.epub')
-        converter = TxtToEpubConverter(self.filePath, output_path, bookTitle, authorName, self.coverImagePath, progress_callback=self.updateProgress)
+        converter = TxtToEpubConverter(self.filePath, output_path, bookTitle, authorName, self.coverImagePath,
+                                       progress_callback=self.updateProgress)
         try:
             converter.convert()
         except Exception as e:
             self.infoLabel.setText(f'转换失败: {e}')
+
 
 def main():
     app = QApplication(sys.argv)
     gui = TxtToEpubGUI()
     gui.show()
     sys.exit(app.exec_())
+
 
 if __name__ == '__main__':
     main()
