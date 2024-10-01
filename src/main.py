@@ -1,9 +1,10 @@
 import os
 import re
 import shutil
-
-from ebooklib import epub
 from typing import NoReturn
+
+import cn2an
+from ebooklib import epub
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -24,7 +25,7 @@ class MultiLevelBook:
 
         :param title: 新卷的标题，类型为字符串。
         """
-        self.volumes.append({'title': title, 'chapters': []})
+        self.volumes.append({"title": title, "chapters": []})
 
     def add_chapter_to_last_volume(self, title: str, content: list[str] = None) -> None:
         """
@@ -36,8 +37,8 @@ class MultiLevelBook:
         if content is None:
             content = []
         if not self.volumes:
-            self.add_volume('默认卷')
-        self.volumes[-1]['chapters'].append({'title': title, 'content': content})
+            self.add_volume("第1卷")
+        self.volumes[-1]["chapters"].append({"title": title, "content": content})
 
     def add_content_to_last_chapter(self, line: str) -> None:
         """
@@ -45,8 +46,8 @@ class MultiLevelBook:
 
         :param line: 要添加到最后一个章节的内容行，类型为字符串。
         """
-        if self.volumes and self.volumes[-1]['chapters']:
-            self.volumes[-1]['chapters'][-1]['content'].append(line)
+        if self.volumes and self.volumes[-1]["chapters"]:
+            self.volumes[-1]["chapters"][-1]["content"].append(line)
 
 
 class TextBookParser:
@@ -62,7 +63,7 @@ class TextBookParser:
         :return: MultiLevelBook对象，包含解析后的卷和章节信息。
         """
         multi_level_book = MultiLevelBook()
-        with open(file_path, 'r', encoding='utf-8') as file:
+        with open(file_path, "r", encoding="utf-8") as file:
             for line in file:
                 line = line.strip()
                 if re.match(TextBookParser.SUBSECTION_PATTERN, line):
@@ -75,6 +76,50 @@ class TextBookParser:
         return multi_level_book
 
     @staticmethod
+    def read_dir(book_dir: str) -> MultiLevelBook:
+        """
+        读取文本文件并解析成一个多级书籍结构。
+        :param book_dir: 包含书籍的目录路径。目录内容形如 book_dir/19-第十九章 xxx.txt
+        :return: MultiLevelBook对象，包含解析后的卷和章节信息。
+        """
+        CHAPTER_ID_PATTERN = r"第(\w+)章?"
+
+        multi_level_book = MultiLevelBook()
+
+        # 保证按id排序
+        chapter_list = os.listdir(book_dir)
+        chapter_list.sort(key=lambda x: int(x.split("-")[0]))
+
+        current_section = 1
+        current_chapter = 0
+
+        for num, chapter in enumerate(chapter_list):
+            # 处理分卷
+            chapter_index = cn2an.cn2an(
+                re.findall(CHAPTER_ID_PATTERN, chapter)[0].replace("章", "")
+            )
+            chapter_name = chapter.split("-")[1].split(".txt")[0]
+
+            if chapter_index < current_chapter and chapter_index <= 3:
+                print(f"卷数改变 {chapter_index} < {current_chapter}")
+                current_chapter = chapter_index
+                current_section += 1
+                multi_level_book.add_volume(f"第{current_section}卷")
+
+            filepath = os.path.join(book_dir, chapter)
+            with open(filepath, "r", encoding="utf-8") as file:
+                content = file.read()
+            multi_level_book.add_chapter_to_last_volume(
+                chapter_name, content.split("\n")
+            )
+            print(
+                f"{num}_{chapter: <30} 第 {current_section} 卷 第 {current_chapter} 章 添加成功"
+            )
+            current_chapter += 1
+
+        return multi_level_book
+
+    @staticmethod
     def save_chapters_as_html(multi_level_book, output_folder: str) -> NoReturn:
         """
         将书籍的每个章节保存为HTML文件，使用编号来命名文件。
@@ -83,22 +128,32 @@ class TextBookParser:
         :param output_folder: HTML文件保存的目录。
         """
         for volume_index, volume in enumerate(multi_level_book.volumes, start=1):
-            for chapter_index, chapter in enumerate(volume['chapters'], start=1):
+            for chapter_index, chapter in enumerate(volume["chapters"], start=1):
                 # 使用编号来命名文件，格式为"001_001.html"代表第一卷第一章
                 file_name = f"{volume_index:03}_{chapter_index:03}.html"
                 file_path = os.path.join(output_folder, file_name)
 
-                with open(file_path, 'w', encoding='utf-8') as chapter_file:
-                    chapter_file.write(f'<html><head><title>{chapter["title"]}</title></head><body>\n')
+                with open(file_path, "w", encoding="utf-8") as chapter_file:
+                    chapter_file.write(
+                        f'<html><head><title>{chapter["title"]}</title></head><body>\n'
+                    )
                     chapter_file.write(f'<h1>{chapter["title"]}</h1>\n')
-                    for line in chapter['content']:
-                        chapter_file.write(f'<p>{line}</p>\n')
-                    chapter_file.write('</body></html>')
+                    for line in chapter["content"]:
+                        chapter_file.write(f"<p>{line}</p>\n")
+                    chapter_file.write("</body></html>")
 
 
 class TxtToEpubConverter:
-    def __init__(self, txt_path: str, epub_path: str, book_title: str, author_name: str, cover_image: str = None,
-                 output_folder: str = './html_chapters', progress_callback=None):
+    def __init__(
+        self,
+        txt_path: str,
+        epub_path: str,
+        book_title: str,
+        author_name: str,
+        cover_image: str = None,
+        output_folder: str = "./html_chapters",
+        progress_callback=None,
+    ):
         """
         初始化转换器实例。
 
@@ -119,19 +174,21 @@ class TxtToEpubConverter:
 
     def generate_cover(self) -> str:
         width, height = 600, 800
-        background_color = 'white'
-        font_color = 'black'
+        background_color = "white"
+        font_color = "black"
 
-        image = Image.new('RGB', (width, height), background_color)
+        image = Image.new("RGB", (width, height), background_color)
         draw = ImageDraw.Draw(image)
         font = ImageFont.load_default()
 
         # Directly draw the text without calculating its size
         text_x = width / 2  # You might need to adjust this manually to center the text
         text_y = height / 2  # Same here
-        draw.text((text_x, text_y), self.book_title, fill=font_color, font=font, anchor="mm")
+        draw.text(
+            (text_x, text_y), self.book_title, fill=font_color, font=font, anchor="mm"
+        )
 
-        cover_path = os.path.join(self.output_folder, 'cover.jpg')
+        cover_path = os.path.join(self.output_folder, "cover.jpg")
         image.save(cover_path)
 
         return cover_path
@@ -142,6 +199,9 @@ class TxtToEpubConverter:
         # Parse the TXT file and build the book structure
         parser = TextBookParser()
         book_structure = parser.read(self.txt_path)
+
+        # 读取目录
+        # book_structure = parser.read_dir(self.txt_path)
 
         # Progress update: after parsing (e.g., 10% completed)
         if self.progress_callback:
@@ -157,7 +217,7 @@ class TxtToEpubConverter:
         # Create EPUB book and set metadata
         book = epub.EpubBook()
         book.set_title(self.book_title)
-        book.set_language('zh-cn')
+        book.set_language("zh-cn")
         book.add_author(self.author_name)
 
         # Add cover image
@@ -166,7 +226,7 @@ class TxtToEpubConverter:
         else:
             cover_path = self.generate_cover()
 
-        book.set_cover(os.path.basename(cover_path), open(cover_path, 'rb').read())
+        book.set_cover(os.path.basename(cover_path), open(cover_path, "rb").read())
 
         # Progress update: after setting cover (e.g., 50% completed)
         if self.progress_callback:
@@ -176,7 +236,9 @@ class TxtToEpubConverter:
         spine = []
         toc = []
 
-        total_chapters = sum(len(volume['chapters']) for volume in book_structure.volumes)
+        total_chapters = sum(
+            len(volume["chapters"]) for volume in book_structure.volumes
+        )
         chapters_processed = 0
 
         # 遍历书籍结构，添加卷和章节到EPUB
@@ -185,45 +247,66 @@ class TxtToEpubConverter:
             vol_file_name = f"{volume_index:03}.html"
 
             # 创建卷的HTML内容
-            vol_title = volume['title']
-            vol_content = f'<html><head><title>{vol_title}</title></head><body>\n<h1>{vol_title}</h1>\n</body></html>'
+            vol_title = volume["title"]
+            vol_content = f"<html><head><title>{vol_title}</title></head><body>\n<h1>{vol_title}</h1>\n</body></html>"
 
             # 创建EpubHtml对象代表卷
-            vol_chapter = epub.EpubHtml(title=vol_title, file_name=vol_file_name, lang='zh-cn', content=vol_content)
+            vol_chapter = epub.EpubHtml(
+                title=vol_title,
+                file_name=vol_file_name,
+                lang="zh-cn",
+                content=vol_content,
+            )
             book.add_item(vol_chapter)
             spine.append(vol_chapter)
-            toc.append(epub.Section(vol_title, [vol_chapter]))
 
-            for chapter_index, chapter in enumerate(volume['chapters'], start=1):
+            # 原有分卷的代码无法正常生成，已修改
+            cur_section = (epub.Section(vol_title, vol_chapter.file_name), [])
+            # toc.append()
+
+            for chapter_index, chapter in enumerate(volume["chapters"], start=1):
                 # 使用编号构建章节的HTML文件名
                 chap_file_name = f"{volume_index:03}_{chapter_index:03}.html"
                 chap_file_path = os.path.join(self.output_folder, chap_file_name)
 
                 # 读取章节内容
-                with open(chap_file_path, 'r', encoding="utf8") as f:
+                with open(chap_file_path, "r", encoding="utf8") as f:
                     fcontent = f.read()
 
                 # 创建EpubHtml对象代表章节
-                chap_title = chapter['title']
-                chapter_item = epub.EpubHtml(title=chap_title, file_name=chap_file_name, lang='zh-cn', content=fcontent)
+                chap_title = chapter["title"]
+                chapter_item = epub.EpubHtml(
+                    title=chap_title,
+                    file_name=chap_file_name,
+                    lang="zh-cn",
+                    content=fcontent,
+                )
 
                 book.add_item(chapter_item)
                 spine.append(chapter_item)
-                toc.append(epub.Link(chap_file_name, chap_title, chap_title))
+                cur_section[1].append(epub.Link(chap_file_name, chap_title, chap_title))
+                # toc.append(epub.Link(chap_file_name, chap_title, chap_title))
 
                 chapters_processed += 1
                 # Progress update: dynamically calculated based on chapters processed
                 if self.progress_callback:
                     progress = 50 + (
-                                chapters_processed / total_chapters * 50)  # Assuming the rest 50% is for chapter processing
+                        chapters_processed / total_chapters * 50
+                    )  # Assuming the rest 50% is for chapter processing
                     self.progress_callback(progress)
+            # 每卷完成后再加入toc
+            toc.append((cur_section[0], tuple(cur_section[1])))
 
         # 设置EPUB书籍的导航和样式
-        book.spine = ['nav'] + spine
+        book.spine = ["nav"] + spine
         book.toc = toc
 
-        nav_css = epub.EpubItem(uid="style_nav", file_name="style/nav.css", media_type="text/css",
-                                content='body { font-family: Times, Times New Roman, serif; }')
+        nav_css = epub.EpubItem(
+            uid="style_nav",
+            file_name="style/nav.css",
+            media_type="text/css",
+            content="body { font-family: Times, Times New Roman, serif; }",
+        )
         book.add_item(nav_css)
         book.add_item(epub.EpubNcx())
         book.add_item(epub.EpubNav())
@@ -253,19 +336,22 @@ class TxtToEpubConverter:
                     elif os.path.isdir(file_path):
                         shutil.rmtree(file_path)
                 except Exception as e:
-                    print('Failed to delete %s. Reason: %s' % (file_path, e))
+                    print("Failed to delete %s. Reason: %s" % (file_path, e))
 
         print("Cleanup completed, temporary files removed.")
 
 
-if __name__ == '__main__':
-    book_name = 'XXXXXXX'
-    txt_path = f'../test_book/{book_name}.txt'
-    epub_path = f'../out/{book_name}.epub'
-    cover_image = f'../test_book/{book_name}.jpg'
+if __name__ == "__main__":
+    book_name = "宿命之环"
+    txt_path = f"../test_book/{book_name}/"
+    epub_path = f"../out/{book_name}.epub"
+    cover_image = f"../test_book/{book_name}.jpg"
+
     # 设置书名和作者
     book_title = book_name
-    author_name = 'XXXX'
+    author_name = "爱潜水的乌贼"
 
-    converter = TxtToEpubConverter(txt_path, epub_path, book_title, author_name, cover_image)
+    converter = TxtToEpubConverter(
+        txt_path, epub_path, book_title, author_name, cover_image
+    )
     converter.convert()
