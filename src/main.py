@@ -37,7 +37,7 @@ class MultiLevelBook:
         if content is None:
             content = []
         if not self.volumes:
-            self.add_volume("第1卷")
+            self.add_volume("默认卷")
         self.volumes[-1]["chapters"].append({"title": title, "content": content})
 
     def add_content_to_last_chapter(self, line: str) -> None:
@@ -349,7 +349,7 @@ if __name__ == "__main__":
 
     # 设置书名和作者
     book_title = book_name
-    author_name = "爱潜水的乌贼"
+    author_name = "xxxxxx"
 
     converter = TxtToEpubConverter(
         txt_path, epub_path, book_title, author_name, cover_image
