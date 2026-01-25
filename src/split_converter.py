@@ -86,7 +86,7 @@ class SplitByMaxChaptersConverter:
         """
         创建单个EPUB文件。
 
-        :param chapters: 章节列表，每个元素是{"title": str, "content": list[str]}。
+        :param chapters: 章节列表，每个元素是{"title": str, "content": list[str], "html_filename": str}。
         :param volume_number: 卷号（从1开始）。
         :param output_folder: 输出目录。
         """
@@ -110,9 +110,10 @@ class SplitByMaxChaptersConverter:
         toc = []
 
         # 遍历章节
-        for chapter_index, chapter in enumerate(chapters, start=1):
-            chap_file_name = f"vol{volume_number:03}_chap{chapter_index:03}.html"
-            chap_file_path = os.path.join(output_folder, chap_file_name)
+        for chapter in chapters:
+            # 使用章节对象中存储的HTML文件名
+            chap_file_name = chapter["html_filename"]
+            chap_file_path = os.path.join(self.output_folder, chap_file_name)
 
             # 读取章节内容
             with open(chap_file_path, "r", encoding="utf8") as f:
@@ -165,8 +166,18 @@ class SplitByMaxChaptersConverter:
         if self.progress_callback:
             self.progress_callback(10)
 
-        # 保存所有章节为HTML文件
+        # 保存所有章节为HTML文件，并记录每个章节的HTML文件名
         parser.save_chapters_as_html(book_structure, self.output_folder)
+
+        # 为每个章节添加原始HTML文件名
+        global_chapter_index = 1
+        for volume_index, volume in enumerate(book_structure.volumes, start=1):
+            for chapter_index, chapter in enumerate(volume["chapters"], start=1):
+                # HTML文件名格式：{volume_index:03}_{chapter_index:03}.html
+                html_filename = f"{volume_index:03}_{chapter_index:03}.html"
+                chapter["html_filename"] = html_filename
+                chapter["global_index"] = global_chapter_index
+                global_chapter_index += 1
 
         # 进度更新：HTML保存完成后（40%）
         if self.progress_callback:
@@ -295,7 +306,7 @@ class AutoSplitConverter:
         """
         创建单个EPUB文件。
 
-        :param chapters: 章节列表，每个元素是{"title": str, "content": list[str]}。
+        :param chapters: 章节列表，每个元素是{"title": str, "content": list[str], "html_filename": str}。
         :param volume_number: 卷号（从1开始）。
         :param output_folder: 输出目录。
         """
@@ -319,9 +330,10 @@ class AutoSplitConverter:
         toc = []
 
         # 遍历章节
-        for chapter_index, chapter in enumerate(chapters, start=1):
-            chap_file_name = f"vol{volume_number:03}_chap{chapter_index:03}.html"
-            chap_file_path = os.path.join(output_folder, chap_file_name)
+        for chapter in chapters:
+            # 使用章节对象中存储的HTML文件名
+            chap_file_name = chapter["html_filename"]
+            chap_file_path = os.path.join(self.output_folder, chap_file_name)
 
             # 读取章节内容
             with open(chap_file_path, "r", encoding="utf8") as f:
@@ -374,8 +386,18 @@ class AutoSplitConverter:
         if self.progress_callback:
             self.progress_callback(10)
 
-        # 保存所有章节为HTML文件
+        # 保存所有章节为HTML文件，并记录每个章节的HTML文件名
         parser.save_chapters_as_html(book_structure, self.output_folder)
+
+        # 为每个章节添加原始HTML文件名
+        global_chapter_index = 1
+        for volume_index, volume in enumerate(book_structure.volumes, start=1):
+            for chapter_index, chapter in enumerate(volume["chapters"], start=1):
+                # HTML文件名格式：{volume_index:03}_{chapter_index:03}.html
+                html_filename = f"{volume_index:03}_{chapter_index:03}.html"
+                chapter["html_filename"] = html_filename
+                chapter["global_index"] = global_chapter_index
+                global_chapter_index += 1
 
         # 进度更新：HTML保存完成后（40%）
         if self.progress_callback:
