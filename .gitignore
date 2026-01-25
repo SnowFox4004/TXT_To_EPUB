@@ -1,3 +1,7 @@
 /out/
 /test_book/
 /src/html_chapters/
+html_chapters/
+*.txt
+**/__pycache__/
+.vscode/

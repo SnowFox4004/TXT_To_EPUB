@@ -6,6 +6,7 @@ from typing import NoReturn
 import cn2an
 from ebooklib import epub
 from PIL import Image, ImageDraw, ImageFont
+import unicodedata
 
 
 class MultiLevelBook:
@@ -37,7 +38,7 @@ class MultiLevelBook:
         if content is None:
             content = []
         if not self.volumes:
-            self.add_volume("默认卷")
+            self.add_volume("第1卷")
         self.volumes[-1]["chapters"].append({"title": title, "content": content})
 
     def add_content_to_last_chapter(self, line: str) -> None:
@@ -76,6 +77,21 @@ class TextBookParser:
         return multi_level_book
 
     @staticmethod
+    def preprocess_txt(content: str):
+        convert_pairs = [
+            ("\u3000", " "),
+            ("\n\n\n", "\n"),
+            # ("\n\n", "\n"),
+            ("                    ", " "),
+            ("　", " "),
+        ]
+
+        for pair in convert_pairs:
+            content = content.replace(*pair)
+            content = unicodedata.normalize("NFKC", content)
+        return content
+
+    @staticmethod
     def read_dir(book_dir: str) -> MultiLevelBook:
         """
         读取文本文件并解析成一个多级书籍结构。
@@ -95,10 +111,18 @@ class TextBookParser:
 
         for num, chapter in enumerate(chapter_list):
             # 处理分卷
-            chapter_index = cn2an.cn2an(
-                re.findall(CHAPTER_ID_PATTERN, chapter)[0].replace("章", "")
-            )
-            chapter_name = chapter.split("-")[1].split(".txt")[0]
+            try:
+                chapter_index = cn2an.cn2an(
+                    re.findall(CHAPTER_ID_PATTERN, chapter)[0].replace("章", ""),
+                    mode="smart",
+                )
+                chapter_name = chapter.split("-")[1].split(".txt")[0]
+            except IndexError as e:
+                print(e, chapter)
+                chapter_index = num
+                chapter_name = chapter.split("-")[1].split(".txt")[0]
+            except ValueError as e:
+                print(e, chapter)
 
             if chapter_index < current_chapter and chapter_index <= 3:
                 print(f"卷数改变 {chapter_index} < {current_chapter}")
@@ -109,8 +133,10 @@ class TextBookParser:
             filepath = os.path.join(book_dir, chapter)
             with open(filepath, "r", encoding="utf-8") as file:
                 content = file.read()
+            content = TextBookParser.preprocess_txt(content)
+
             multi_level_book.add_chapter_to_last_volume(
-                chapter_name, content.split("\n")
+                chapter_name, [seg for seg in content.split("\n") if seg]
             )
             print(
                 f"{num}_{chapter: <30} 第 {current_section} 卷 第 {current_chapter} 章 添加成功"
@@ -198,8 +224,9 @@ class TxtToEpubConverter:
 
         # Parse the TXT file and build the book structure
         parser = TextBookParser()
-        book_structure = parser.read(self.txt_path)
-
+        book_structure = parser.read_dir(self.txt_path)
+        # book_structure = parser.read(self.txt_path)
+        # print(*(len(i) for i in book_structure.volumes), sep="\n")
         # 读取目录
         # book_structure = parser.read_dir(self.txt_path)
 
@@ -312,7 +339,7 @@ class TxtToEpubConverter:
         book.add_item(epub.EpubNav())
 
         # 写入EPUB文件
-        epub.write_epub(self.epub_path, book, {})
+        print(epub.write_epub(self.epub_path, book, {"raise_exceptions": 1}))
 
         # Progress update: conversion completed (100%)
         if self.progress_callback:
@@ -342,14 +369,16 @@ class TxtToEpubConverter:
 
 
 if __name__ == "__main__":
-    book_name = "宿命之环"
-    txt_path = f"../test_book/{book_name}/"
+    book_name = "玄鉴仙族"
+    txt_path = r"C:\Users\SnowFox4004\Desktop\程序\py\BookDownload\TXT_To_EPUB\test_book\玄鉴仙族_繁體"
     epub_path = f"../out/{book_name}.epub"
-    cover_image = f"../test_book/{book_name}.jpg"
+    # cover_image = f"../test_book/{book_name}.jpg"
+    cover_image = r"C:\Users\SnowFox4004\Downloads\xjxz.png"
+    # cover_image = r"C:\Users\SnowFox4004\Downloads\lordofmystery.jfif"
 
     # 设置书名和作者
     book_title = book_name
-    author_name = "xxxxxx"
+    author_name = "季越人"
 
     converter = TxtToEpubConverter(
         txt_path, epub_path, book_title, author_name, cover_image
